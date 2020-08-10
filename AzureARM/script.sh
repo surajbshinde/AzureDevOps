@@ -1,6 +1,6 @@
 #!bin/bash
 sudo rpm -Uvh https://yum.puppet.com/puppet6-release-el-7.noarch.rpm
-#sudo yum update -yi
+#sudo yum update -y
 sudo yum install puppet-agent -y
 sudo systemctl start puppet
 sudo systemctl enable puppet
