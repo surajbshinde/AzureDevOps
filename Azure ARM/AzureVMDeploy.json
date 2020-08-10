@@ -1,0 +1,185 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "VMName": {
+            "type": "string",
+            "metadata": {
+                "description": "Enter the name of the virtual machine"
+            }
+        },
+        "VMLocation": {
+            "type": "string",
+            "allowedValues": [
+                "EastUS2",
+                "WestEurope"
+            ],
+            "defaultValue": "EastUS2",
+            "metadata": {
+                "description": "Enter the location in which the VM should be created"
+            }
+        },
+        "VMSize": {
+            "type": "string",
+            "allowedValues": [
+                "Standard_DS1",
+                "Standard_D1",
+                "Standard_B1ms",
+                "Standard_B1s"
+            ],
+            "defaultValue": "Standard_B1ms",
+            "metadata": {
+                "description": "Standard_B1s = 1vCPU & 1GBRAM"
+            }
+        },
+        "OperatingSystem": {
+            "type": "string",
+            "allowedValues": [
+                "2012-R2-Datacenter",
+                "2016-Datacenter",
+                "2019-Datacenter-smalldisk"
+            ],
+            "defaultValue": "2012-R2-Datacenter",
+            "metadata": {
+                "description": "Select the Operating System"
+            }
+        },
+        "adminPassword": {
+            "type": "securestring",
+            "metadata": {
+                "description": "Password will be retrieved from the KeyVault for the deploymwnt using Parameters file"
+            }
+        }
+    },
+    "variables": {
+        "vmNic": "[concat(parameters('VMName'), '-NIC')]",
+        "vmPublicIP": "[concat(parameters('VMName'), '-PIP')]",
+        "vNetRG": "Cloudtravellers-RG",
+        "vNetName": "CTVNet",
+        "subnetName": "testsubnet",
+        "userName": "azureadmin",
+        "OSDiskName": "[concat(parameters('VMName'), '-OSDISK')]",
+        "BootDiagStorageaccount": "http://bootdiagcloudtravellers.blob.core.windows.net",
+        "vnetId": "[resourceId(variables('vNetRG'),'Microsoft.Network/virtualNetworks', variables('vNetName'))]",
+        "subnetRef": "[concat(variables('vnetId'), '/subnets/', variables('subnetName'))]"
+    },
+    "resources": [
+        {
+            "name": "[variables('vmPublicIP')]",
+            "type": "Microsoft.Network/publicIPAddresses",
+            "apiVersion": "2019-11-01",
+            "location": "[parameters('VMLocation')]",
+            "properties": {
+                "publicIPAllocationMethod": "Dynamic"
+            }
+        },
+        {
+            "name": "[variables('vmNic')]",
+            "type": "Microsoft.Network/networkInterfaces",
+            "apiVersion": "2019-11-01",
+            "location": "[parameters('VMLocation')]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Network/publicIPAddresses', variables('vmPublicIP'))]"
+            ],
+            "properties": {
+                "ipConfigurations": [
+                    {
+                        "name": "defaultipconfig",
+                        "properties": {
+                            "privateIPAllocationMethod": "Dynamic",
+                            "publicIPAddress": {
+                                "id": "[resourceId('Microsoft.Network/publicIPAddresses', variables('vmPublicIP'))]"
+                            },
+                            "subnet": {
+                                "id": "[variables('subnetRef')]"
+                            }
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            "name": "[parameters('VMName')]",
+            "type": "Microsoft.Compute/virtualMachines",
+            "apiVersion": "2019-07-01",
+            "location": "[parameters('VMLocation')]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Network/networkInterfaces', variables('vmNic'))]"
+            ],
+            "properties": {
+                "hardwareProfile": {
+                    "vmSize": "[parameters('VMSize')]"
+                },
+                "osProfile": {
+                    "computerName": "[parameters('VMName')]",
+                    "adminUsername": "[variables('userName')]",
+                    "adminPassword": "[parameters('adminPassword')]"
+                },
+                "storageProfile": {
+                    "imageReference": {
+                        "publisher": "MicrosoftWindowsServer",
+                        "offer": "WindowsServer",
+                        "sku": "[parameters('OperatingSystem')]",
+                        "version": "latest"
+                    },
+                    "osDisk": {
+                        "name": "[variables('OSDiskName')]",
+                        "caching": "ReadWrite",
+                        "createOption": "FromImage",
+                        "managedDisk": {
+                            "storageAccountType": "Standard_LRS"
+                        }
+                    }
+                },
+                "networkProfile": {
+                    "networkInterfaces": [
+                        {
+                            "id": "[resourceId('Microsoft.Network/networkInterfaces', variables('vmNic'))]"
+                        }
+                    ]
+                },
+                "diagnosticsProfile": {
+                    "bootDiagnostics": {
+                        "enabled": true,
+                        "storageUri": "[variables('BootDiagStorageaccount')]"
+                    }
+                }
+            }
+        },
+        {
+            "name": "[concat(parameters('VMName'),'/scripts')]",
+            "type": "Microsoft.Compute/virtualMachines/extensions",
+            "apiVersion": "2019-07-01",
+            "location": "[parameters('VMLocation')]",
+            "dependsOn": [
+                "[concat('Microsoft.Compute/virtualMachines/', parameters('VMName'))]"
+            ],
+            "properties": {
+                "publisher": "Microsoft.Compute",
+                "type": "CustomScriptExtension",
+                "typeHandlerVersion": "1.6",
+                "autoUpgradeMinorVersion": "true",
+                "settings": {
+                    "fileUris": [
+                        "https://cloudtravellersstorage.blob.core.windows.net/scripts/InstallConfigureIIS.ps1"
+                    ],
+                    "commandToExecute": "powershell.exe -ExecutionPolicy Unrestricted -File InstallConfigureIIS.ps1"
+                }
+                }
+            }
+    ],
+    "outputs": {
+        "vmName": {
+            "type": "string",
+            "value": "[parameters('VMName')]"
+        },
+        "PublicIPaddress": {
+            "type": "string",
+            "value": "[reference(variables('vmPublicIP')).ipaddress]"
+        },
+        "PrivateIPaddress": {
+            "type": "string",
+            "value": "[reference(variables('vmNic')).ipConfigurations[0].properties.privateIPAddress]"
+        }
+    }
+}

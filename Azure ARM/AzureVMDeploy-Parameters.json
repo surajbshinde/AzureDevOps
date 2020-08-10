@@ -1,0 +1,14 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "adminPassword": {
+            "reference": {
+                "keyVault": {
+                "id": "/subscriptions/b69c2a11-bd8a-4349-b9d9-1c55bd839199/resourceGroups/M2Resources/providers/Microsoft.KeyVault/vaults/PasswordTool"
+                },
+                "secretName": "localadmin"
+            }
+        }
+    }
+}
